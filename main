@@ -1,0 +1,812 @@
+import sys
+import urllib.request
+import json
+import requests
+import tkinter as tk
+import datetime
+from tkinter import ttk
+from tkinter import messagebox
+import pandas as pd
+from webbrowser import open as open_url
+
+
+# 新增函数：从网页中提取后三位作为账号或密码
+def extract_last_three_digits(url):
+    response = requests.get(url)
+    if response.status_code == 200:
+        return response.url[-3:]
+    else:
+        return None
+# 新增函数：验证账号和密码
+def authenticate(username, password):
+    account_url = 'http://www.sfj1688.com/article.php?id=167'
+    password_url = 'http://www.sfj1688.com/article.php?id=168'
+    account = extract_last_three_digits(account_url)
+    correct_password = extract_last_three_digits(password_url)
+    #print("提取到的账号：", account)
+    #print("提取到的密码：", correct_password)
+    if account is None or correct_password is None:
+        return False
+    return username == account and password == correct_password
+    print(f"认证结果：{result}")
+    return result
+# 新增函数：创建登录窗口
+def create_login_window(auth_callback):
+    is_destroyed = False  # 添加这一行以声明 is_destroyed 变量
+    login_window = tk.Tk()
+    login_window.title('订单数据系统')
+    login_window.geometry('420x300')
+    #增加的
+    # 添加背景图片
+    #bg_image = tk.PhotoImage(file='tp.png')
+    #bg_label = tk.Label(login_window, image=bg_image)
+    #bg_label.place(x=0, y=0, relwidth=1, relheight=1)
+
+    username_label = tk.Label(login_window, text='账号:',font=('微软雅黑', 16))
+    username_label.grid(row=0, column=0, padx=50, pady=20)
+    username_entry = tk.Entry(login_window)
+    username_entry.grid(row=0, column=1)
+
+    password_label = tk.Label(login_window, text='密码:',font=('微软雅黑', 16))
+    password_label.grid(row=1, column=0, padx=50, pady=20)
+    password_entry = tk.Entry(login_window, show='*')
+    password_entry.grid(row=1, column=1)
+
+    def on_login_click():
+        username = username_entry.get()
+        password = password_entry.get()
+        if authenticate(username, password):
+            auth_callback()
+            login_window.destroy()
+        else:
+            messagebox.showerror('错误', '无权使用')
+
+    login_button = tk.Button(login_window, text='登录',font=('微软雅黑', 16), command=on_login_click)
+    login_button.place(x=220, y=250)
+    login_button.grid(row=2, columnspan=2, pady=20)
+
+    # 添加自动关闭功能
+    def auto_close_window():
+        nonlocal is_destroyed
+        if not is_destroyed:
+            is_destroyed = True
+            login_window.destroy()
+    # 设置1分钟（60000毫秒）后自动关闭窗口
+    login_window.after(20000, auto_close_window)
+    login_window.mainloop()
+
+# 检查有效期
+def check_validity():
+    current_date = datetime.datetime.now()
+    expiry_date = datetime.datetime(2025, 4, 15)
+    if current_date > expiry_date:
+        messagebox.showerror('Error', '软件已过期，请联系开发者。')
+        sys.exit()
+
+# 共享的功能函数
+def export_excel(data, columns, filename):
+    df = pd.DataFrame(data, columns=columns)
+    writer = pd.ExcelWriter(filename, engine='xlsxwriter')
+    df.to_excel(writer, index=False)
+    writer.save()
+    messagebox.showinfo('导出成功', f'Excel表格已成功导出到程序所在文件夹。')
+
+def open_link(event, tree):
+    item = tree.selection()[0]
+    link = tree.item(item, 'tags')[0]
+    open_url(link)
+
+# 反拍公告的导出功能
+def export_announcement_excel(tree):
+    data = []
+    for item in tree.get_children():
+        values = tree.item(item)['values']
+        link = tree.item(item, 'tags')[0]
+        data.append([values[0], values[1], values[2], values[3], values[4], link])
+    columns = ['序号', '创建时间', '地区', '总金额', '标题', '公告链接']
+    current_time = datetime.datetime.now().strftime('%Y%m%d%H%M%S')
+    filename = f'政府采购信息_反拍公告_{current_time}.xlsx'
+    export_excel(data, columns, filename)
+
+# 反拍结果的导出功能
+def export_result_excel(tree):
+    data = []
+    for item in tree.get_children():
+        values = tree.item(item)['values']
+        link = tree.item(item, 'tags')[0]
+        data.append([values[0], values[1], values[2], values[3], values[4], values[5], values[6], values[7][:50], link])
+    columns = ['序号', '创建时间', '地区', '订单编号', '机构名', '供应商名称', '总金额', '标题', '公告链接']
+    current_time = datetime.datetime.now().strftime('%Y%m%d%H%M%S')
+    filename = f'政府采购信息_反拍结果_{current_time}.xlsx'
+    export_excel(data, columns, filename)
+
+# 竞价结果的导出功能
+def export_bidding_result_excel(tree):
+    data = []
+    for item in tree.get_children():
+        values = tree.item(item)['values']
+        link = tree.item(item, 'tags')[0]
+        data.append([values[0], values[1], values[2], values[3], values[4], values[5], values[6], values[7][:50], link])
+    columns = ['序号', '创建时间', '地区', '订单编号', '机构名', '供应商名称', '总金额', '标题', '公告链接']
+    current_time = datetime.datetime.now().strftime('%Y%m%d%H%M%S')
+    filename = f'政府采购信息_竞价结果_{current_time}.xlsx'
+    export_excel(data, columns, filename)
+
+# 竞价公告的导出功能
+def export_jjgg_excel(tree):
+    data = []
+    for item in tree.get_children():
+        values = tree.item(item)['values']
+        link = tree.item(item, 'tags')[0]
+        data.append([values[0], values[1], values[2], values[3], values[4], link])
+    columns = ['序号', '创建时间', '地区', '总金额', '标题', '公告链接']
+    current_time = datetime.datetime.now().strftime('%Y%m%d%H%M%S')
+    filename = f'政府采购信息_竞价公告_{current_time}.xlsx'
+    export_excel(data, columns, filename)
+
+# 终止公告的导出功能
+def export_zzgg_excel(tree):
+    data = []
+    for item in tree.get_children():
+        values = tree.item(item)['values']
+        link = tree.item(item, 'tags')[0]
+        data.append([values[0], values[1], values[2], values[3], values[4], link])
+    columns = ['序号', '创建时间', '地区', '总金额', '标题', '公告链接']
+    current_time = datetime.datetime.now().strftime('%Y%m%d%H%M%S')
+    filename = f'政府采购信息_终止公告_{current_time}.xlsx'
+    export_excel(data, columns, filename)
+
+# 违规公告的导出功能
+def export_zzgg_excel(tree):
+    data = []
+    for item in tree.get_children():
+        values = tree.item(item)['values']
+        link = tree.item(item, 'tags')[0]
+        data.append([values[0], values[1], values[2], values[3], values[4], link])
+    columns = ['序号', '创建时间', '地区', '总金额', '标题', '公告链接']
+    current_time = datetime.datetime.now().strftime('%Y%m%d%H%M%S')
+    filename = f'政府采购信息_违规公告_{current_time}.xlsx'
+    export_excel(data, columns, filename)
+
+# 通知公告的导出功能
+def export_tzgg_excel(tree):
+    data = []
+    for item in tree.get_children():
+        values = tree.item(item)['values']
+        link = tree.item(item, 'tags')[0]
+        data.append([values[0], values[1], values[2], values[3], values[4], link])
+    columns = ['序号', '创建时间', '地区', '总金额', '标题', '公告链接']
+    current_time = datetime.datetime.now().strftime('%Y%m%d%H%M%S')
+    filename = f'政府采购信息_通知公告_{current_time}.xlsx'
+    export_excel(data, columns, filename)
+
+# 政采网公告的导出功能
+def export_cgwgg_excel(tree):
+    data = []
+    for item in tree.get_children():
+        values = tree.item(item)['values']
+        link = tree.item(item, 'tags')[0]
+        data.append([values[0], values[1], values[2], values[3], values[4], link])
+    columns = ['序号', '创建时间', '标题', '公告链接']
+    current_time = datetime.datetime.now().strftime('%Y%m%d%H%M%S')
+    filename = f'政府采购信息_采购网公告_{current_time}.xlsx'
+    export_excel(data, columns, filename)
+
+#框架公告的导出功能
+def export_kjgg_excel(tree):
+    data = []
+    for item in tree.get_children():
+        values = tree.item(item)['values']
+        link = tree.item(item, 'tags')[0]
+        data.append([values[0], values[1], values[2], values[3], values[4], link])
+    columns = ['序号', '创建时间', '地区', '项目编号', '标题', '公告链接']
+    current_time = datetime.datetime.now().strftime('%Y%m%d%H%M%S')
+    filename = f'政府采购信息_框架公告_{current_time}.xlsx'
+    export_excel(data, columns, filename)
+
+#详细反拍公告的导出功能
+def export_xxfpgg_excel(tree):
+    data = []
+    for item in tree.get_children():
+        values = tree.item(item)['values']
+        link = tree.item(item, 'tags')[0]
+        data.append([values[0], values[1], values[2], values[3], values[4], values[5], values[6], values[7], link])
+    columns = ['序号', '进行状态', '开始时间', '截止时间', '采购单位', '项目', '反拍品目', '项目编号', '公告链接']
+    current_time = datetime.datetime.now().strftime('%Y%m%d%H%M%S')
+    filename = f'政府采购信息_框架公告_{current_time}.xlsx'
+    export_excel(data, columns, filename)
+
+# 反拍公告
+def get_notice_list_1():
+    try:
+        url = 'http://www.sfj1688.com/article.php?id=170'
+        response = urllib.request.urlopen(url)
+        data = response.read().decode('utf-8')
+        data = json.loads(data)
+        return data['data'], None
+    except urllib.error.HTTPError as e:
+        return None, e
+    # 与原代码相同
+    pass
+
+def generate_treeview_1(tree):
+    data, error = get_notice_list_1()
+    if data is not None:
+        tree.delete(*tree.get_children())
+        for i, item in enumerate(data):
+            link = f"https://zfcg.czt.fujian.gov.cn/gpmall-main-web/fujian/basic/noticeDetail?noticeGuid={item['noticeGuid']}"
+            tree.insert("", "end", values=(i + 1, item['createDate'], item['regionName'], item['budgetAmount'], item['title'], "双击查看(网超账号保持登录)"), tags=(link,))
+    elif error is not None:
+        messagebox.showerror('Error', f'Error: {error}')
+    # 与原代码相同
+    pass
+
+# 反拍结果
+def get_notice_list_2():
+    try:
+        url = 'http://www.sfj1688.com/article.php?id=171'
+        response = urllib.request.urlopen(url)
+        data = response.read()
+        data = json.loads(data)
+        return data['data'], None
+    except urllib.error.HTTPError as e:
+        return None, e
+    # 与原代码相同
+    pass
+
+def generate_treeview_2(tree):
+    data, error = get_notice_list_2()
+    if data is not None:
+        tree.delete(*tree.get_children())
+        for i, item in enumerate(data):
+            link = f"https://zfcg.czt.fujian.gov.cn/gpmall-main-web/fujian/basic/noticeDetail?noticeGuid={item['noticeGuid']}"
+            tree.insert("", "end", values=(i + 1, item['createDate'], item['regionName'], item['orderCode'], item['orgName'], item['supplierName'], item['countTotalMoney'], item['title'], "双击查看(网超账号保持登录)"), tags=(link,))
+    elif error is not None:
+        messagebox.showerror('Error', f'Error: {error}')
+    # 与原代码相同
+    pass
+
+# 竞价结果
+def get_notice_list_3():
+    try:
+        url = 'http://www.sfj1688.com/article.php?id=172'
+        response = urllib.request.urlopen(url)
+        data = response.read()
+        data = json.loads(data)
+        return data['data'], None
+    except urllib.error.HTTPError as e:
+        return None, e
+    # 与原代码相同
+    pass
+
+def generate_treeview_3(tree):
+    data, error = get_notice_list_3()
+    if data is not None:
+        tree.delete(*tree.get_children())
+        for i, item in enumerate(data):
+            link = f"https://zfcg.czt.fujian.gov.cn/gpmall-main-web/fujian/basic/noticeDetail?noticeGuid={item['noticeGuid']}"
+            tree.insert("", "end", values=(i + 1, item['createDate'], item['regionName'], item['orderCode'], item['orgName'], item['supplierName'], item['countTotalMoney'], item['title'], "双击查看(网超账号保持登录)"), tags=(link,))
+    elif error is not None:
+        messagebox.showerror('Error', f'Error: {error}')
+    # 与原代码相同
+    pass
+
+# 竞价公告
+def get_notice_list_4():
+    try:
+        url = 'http://www.sfj1688.com/article.php?id=173'
+        response = urllib.request.urlopen(url)
+        data = response.read().decode('utf-8')
+        data = json.loads(data)
+        return data['data'], None
+    except urllib.error.HTTPError as e:
+        return None, e
+    # 与原代码相同
+    pass
+
+def generate_treeview_4(tree):
+    data, error = get_notice_list_4()
+    if data is not None:
+        tree.delete(*tree.get_children())
+        for i, item in enumerate(data):
+            link = f"https://zfcg.czt.fujian.gov.cn/gpmall-main-web/fujian/basic/noticeDetail?noticeGuid={item['noticeGuid']}"
+            tree.insert("", "end", values=(i + 1, item['createDate'], item['regionName'], item['budgetAmount'], item['title'], "双击查看(网超账号保持登录)"), tags=(link,))
+    elif error is not None:
+        messagebox.showerror('Error', f'Error: {error}')
+    # 与原代码相同
+    pass
+
+
+# 终止公告
+def get_notice_list_5():
+    try:
+        url = 'http://www.sfj1688.com/article.php?id=174'
+        response = urllib.request.urlopen(url)
+        data = response.read().decode('utf-8')
+        data = json.loads(data)
+        return data['data'], None
+    except urllib.error.HTTPError as e:
+        return None, e
+    # 与原代码相同
+    pass
+
+def generate_treeview_5(tree):
+    data, error = get_notice_list_5()
+    if data is not None:
+        tree.delete(*tree.get_children())
+        for i, item in enumerate(data):
+            link = f"https://zfcg.czt.fujian.gov.cn/gpmall-main-web/fujian/basic/noticeDetail?noticeGuid={item['noticeGuid']}"
+            tree.insert("", "end", values=(i + 1, item['createDate'], item['regionName'], item['title'], "双击查看(网超账号保持登录)"), tags=(link,))
+    elif error is not None:
+        messagebox.showerror('Error', f'Error: {error}')
+    # 与原代码相同
+    pass
+
+# 违规公告
+def get_notice_list_6():
+    try:
+        url = 'http://www.sfj1688.com/article.php?id=175'
+        response = urllib.request.urlopen(url)
+        data = response.read().decode('utf-8')
+        data = json.loads(data)
+        return data['data'], None
+    except urllib.error.HTTPError as e:
+        return None, e
+    # 与原代码相同
+    pass
+
+def generate_treeview_6(tree):
+    data, error = get_notice_list_6()
+    if data is not None:
+        tree.delete(*tree.get_children())
+        for i, item in enumerate(data):
+            link = f"https://zfcg.czt.fujian.gov.cn/gpmall-main-web/fujian/basic/noticeDetail?noticeGuid={item['noticeGuid']}"
+            tree.insert("", "end", values=(i + 1, item['createDate'], item['regionName'], item['title'], "双击查看(网超账号保持登录)"), tags=(link,))
+    elif error is not None:
+        messagebox.showerror('Error', f'Error: {error}')
+    # 与原代码相同
+    pass
+
+# 通知公告
+def get_notice_list_7():
+    try:
+        url = 'http://www.sfj1688.com/article.php?id=176'
+        response = urllib.request.urlopen(url)
+        data = response.read().decode('utf-8')
+        data = json.loads(data)
+        return data['data'], None
+    except urllib.error.HTTPError as e:
+        return None, e
+    # 与原代码相同
+    pass
+
+def generate_treeview_7(tree):
+    data, error = get_notice_list_7()
+    if data is not None:
+        tree.delete(*tree.get_children())
+        for i, item in enumerate(data):
+            link = f"https://zfcg.czt.fujian.gov.cn/gpmall-main-web/fujian/basic/noticeDetail?noticeGuid={item['noticeGuid']}"
+            tree.insert("", "end", values=(i + 1, item['createDate'], item['regionName'], item['title'], "双击查看(网超账号保持登录)"), tags=(link,))
+    elif error is not None:
+        messagebox.showerror('Error', f'Error: {error}')
+    # 与原代码相同
+    pass
+
+# 通知公告
+def get_notice_list_8():
+    try:
+        url = 'https://zfcg.czt.fujian.gov.cn/freecms/rest/v1/notice/selectInfoMoreChannel.do?&siteId=d36a6e8b-4363-4b52-a00b-79ca47033923&channel=a8f44520-bad8-4f13-92f0-3765eacc6f71&currPage=1&pageSize=30&regionCode=350001&title=&operationStartTime=&operationEndTime=&selectTimeName=noticeTime'
+        response = urllib.request.urlopen(url)
+        data = response.read().decode('utf-8')
+        data = json.loads(data)
+        return data['data'], None
+    except urllib.error.HTTPError as e:
+        return None, e
+    # 与原代码相同
+    pass
+
+def generate_treeview_8(tree):
+    data, error = get_notice_list_8()
+    if data is not None:
+        tree.delete(*tree.get_children())
+        for i, item in enumerate(data):
+            link = f"https://zfcg.czt.fujian.gov.cn{item['pageurl']}"
+            tree.insert("", "end", values=(i + 1, item['addtimeStr'], item['title'], "双击查看(网超账号保持登录)"), tags=(link,))
+    elif error is not None:
+        messagebox.showerror('Error', f'Error: {error}')
+    # 与原代码相同
+    pass
+
+# 框架公告
+def get_data_from_api_9():
+    response = requests.post(api_url, headers=headers, data=json.dumps(data))
+    print(response.json())  # 添加此行以打印JSON数据
+    if response.status_code == 200:
+        return response.json()['data']['data'], None  # 修改此行
+    else:
+        #print(f"响应内容：{response.text}")  # 添加此行以打印响应内容
+        return None, f"请求失败，状态码：{response.status_code}"
+
+def generate_treeview_9(tree):
+    data, error = get_data_from_api_9()
+    if data is not None:
+        tree.delete(*tree.get_children())
+        for i, item in enumerate(data):
+            link = item['path']
+            tree.insert("", "end", values=(i + 1, item['createTime'], item['zoneName'], item['projectCode'], item['title'], "双击查看"), tags=(link,))
+    elif error is not None:
+        messagebox.showerror('Error', f'Error: {error}')
+
+api_url = "https://zfcg.czt.fujian.gov.cn/gpfa-bpoc/api/notice/kc/v1/ignore/pagingKcAgreementNotice"
+
+headers = {
+    "Accept": "application/json, text/plain, */*",
+    "Accept-Encoding": "gzip, deflate",
+    "Accept-Language": "zh-CN,zh;q=0.9",
+    "Cache-Control": "no-cache",
+    "Connection": "keep-alive",
+    "Content-Type": "application/json",
+    "Pragma": "no-cache",
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/86.0.4240.198 Safari/537.36",
+    "regioncode": "350001",
+    "regionGuid": "1260001"
+}
+
+data = {
+    "agreementTypeCode": 0,
+    "regionGuid": "1260001",
+    "pageSize": 20,
+    "pageNum": 1,
+    "noticeTypeList": [
+        "gpfa_notice",
+        "gpfa_notice_modify",
+        "gpfa_notice_resume",
+        "gpfa_notice_pause"
+    ]
+}
+
+# 详细反拍公告
+def get_xxfpgg_list_10():
+    response = requests.post(api_url, headers=headers, data=json.dumps(data))
+    print(response.json())  # 添加此行以打印JSON数据
+    if response.status_code == 200:
+        return response.json()['data']['data'], None  # 修改此行
+    else:
+        #print(f"响应内容：{response.text}")  # 添加此行以打印响应内容
+        return None, f"请求失败，状态码：{response.status_code}"
+
+def generate_treeview_10(tree):
+    data, error = get_xxfpgg_list_10()
+    if data is not None:
+        tree.delete(*tree.get_children())
+        for i, item in enumerate(data):
+            link = item['path']
+            tree.insert("", "end", values=(i + 1,  item['projectStatusName'], item['startTimeName'], item['endTimeName'], item['orgName'], item['projectName'], item['goodsClassName'], item['projectCode'], "双击查看"), tags=(link,))
+    elif error is not None:
+        messagebox.showerror('Error', f'Error: {error}')
+
+api_url = "https://zfcg.czt.fujian.gov.cn/gpmall-bpoc/api/backhandProjectManage/v1/queryBackhandProjectManagePageInfo"
+
+headers = {
+    "Accept": "application/json, text/plain, */*",
+    "Accept-Encoding": "gzip, deflate",
+    "Accept-Language": "zh-CN,zh;q=0.9",
+    "Cache-Control": "no-cache",
+    "Connection": "keep-alive",
+    "Content-Type": "application/json",
+    "Pragma": "no-cache",
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/86.0.4240.198 Safari/537.36",
+    "regioncode": "350001",
+    "regionGuid": "1260001"
+}
+
+data = {
+    "goodsClassGuid":"",
+    "buyPlanCode":"",
+    "orgName":"",
+    "projectCode":"",
+    "projectStatus":1,
+    "pageNum":1,
+    "pageSize":15
+}
+
+
+# 主窗口
+#def main():
+def create_main_window():
+    window = tk.Tk()
+    window.title('福建网超全省信息汇总展示')
+    window.geometry('1600x900')
+    button_frame = tk.Frame(window)
+    button_frame.pack(pady=10)
+
+    # 创建一个style组件并设置选项卡的字体大小
+    style = ttk.Style()
+    style.configure('TNotebook.Tab', font=('微软雅黑', 14))
+
+    # 创建Notebook组件
+    notebook = ttk.Notebook(window)
+
+    # 创建三个选项卡并将它们添加到Notebook
+    tab1 = ttk.Frame(notebook)
+    tab2 = ttk.Frame(notebook)
+    tab3 = ttk.Frame(notebook)
+    tab4 = ttk.Frame(notebook)
+    tab5 = ttk.Frame(notebook)
+    tab6 = ttk.Frame(notebook)
+    tab7 = ttk.Frame(notebook)
+    tab8 = ttk.Frame(notebook)
+    tab9 = ttk.Frame(notebook)
+    tab10 = ttk.Frame(notebook)
+
+    notebook.add(tab1, text='  反拍公告  ')
+    notebook.add(tab2, text='  反拍结果  ')
+    notebook.add(tab3, text='  竞价结果  ')
+    notebook.add(tab4, text='  竞价公告  ')
+    notebook.add(tab5, text='  终止公告  ')
+    notebook.add(tab6, text='  违规公告  ')
+    notebook.add(tab7, text='  通知公告  ')
+    notebook.add(tab8, text='  采购网公告  ')
+    notebook.add(tab9, text='  框架公告测试  ')
+    notebook.add(tab10, text='  详细反拍公告  ')
+
+    # 在每个选项卡上创建一个表格
+    tree1 = ttk.Treeview(tab1, columns=('序号', '创建时间', '地区', '总金额', '标题', '公告链接'), show='headings')
+    tree2 = ttk.Treeview(tab2, columns=('序号', '创建时间', '地区', '订单编号', '机构名', '供应商名称', '总金额', '标题', '公告链接'), show='headings')
+    tree3 = ttk.Treeview(tab3, columns=('序号', '创建时间', '地区', '订单编号', '机构名', '供应商名称', '总金额', '标题', '公告链接'), show='headings')
+    tree4 = ttk.Treeview(tab4, columns=('序号', '创建时间', '地区', '总金额', '标题', '公告链接'), show='headings',)
+    tree5 = ttk.Treeview(tab5, columns=('序号', '创建时间', '地区', '标题', '公告链接'), show='headings')
+    tree6 = ttk.Treeview(tab6, columns=('序号', '创建时间', '地区', '标题', '公告链接'), show='headings')
+    tree7 = ttk.Treeview(tab7, columns=('序号', '创建时间', '地区', '标题', '公告链接'), show='headings')
+    tree8 = ttk.Treeview(tab8, columns=('序号', '创建时间', '标题', '公告链接'), show='headings')
+    tree9 = ttk.Treeview(tab9, columns=('序号', '创建时间', '地区', '项目编号', '标题', '公告链接'), show='headings')
+    tree10 = ttk.Treeview(tab10, columns=('序号', '进行状态', '开始时间', '截止时间', '采购单位', '项目', '反拍品目', '项目编号', '公告链接'), show='headings')
+
+    # 配置表格标题和列宽
+    # 配置表格1（反拍公告）的标题和列宽
+    tree1.heading('序号', text='序号')
+    tree1.heading('创建时间', text='创建时间')
+    tree1.heading('地区', text='地区')
+    tree1.heading('总金额', text='总金额')
+    tree1.heading('标题', text='标题')
+    tree1.heading('公告链接', text='查看详情')
+    tree1.column('序号', width=20)
+    tree1.column('创建时间', width=150)
+    tree1.column('地区', width=50)
+    tree1.column('总金额', width=100)
+    tree1.column('标题', width=500)
+    tree1.column('公告链接', width=180)
+    # 配置表格2（反拍结果）的标题和列宽
+    tree2.heading('序号', text='序号')
+    tree2.heading('创建时间', text='创建时间')
+    tree2.heading('地区', text='地区')
+    tree2.heading('订单编号', text='订单编号')
+    tree2.heading('机构名', text='机构名')
+    tree2.heading('供应商名称', text='供应商名称')
+    tree2.heading('总金额', text='总金额')
+    tree2.heading('标题', text='标题')
+    tree2.heading('公告链接', text='查看详情')
+    tree2.column('序号', width=20)
+    tree2.column('创建时间', width=150)
+    tree2.column('地区', width=50)
+    tree2.column('订单编号', width=150)
+    tree2.column('机构名', width=250)
+    tree2.column('供应商名称', width=250)
+    tree2.column('总金额', width=100)
+    tree2.column('标题', width=500)
+    tree2.column('公告链接', width=180)
+    # 配置表格3（竞价结果）的标题和列宽
+    tree3.heading('序号', text='序号')
+    tree3.heading('创建时间', text='创建时间')
+    tree3.heading('地区', text='地区')
+    tree3.heading('订单编号', text='订单编号')
+    tree3.heading('机构名', text='机构名')
+    tree3.heading('供应商名称', text='供应商名称')
+    tree3.heading('总金额', text='总金额')
+    tree3.heading('标题', text='标题')
+    tree3.heading('公告链接', text='查看详情')
+    tree3.column('序号', width=20)
+    tree3.column('创建时间', width=150)
+    tree3.column('地区', width=50)
+    tree3.column('订单编号', width=150)
+    tree3.column('机构名', width=250)
+    tree3.column('供应商名称', width=250)
+    tree3.column('总金额', width=100)
+    tree3.column('标题', width=500)
+    tree3.column('公告链接', width=180)
+    # 配置表格4（竞价公告）的标题和列宽
+    tree4.heading('序号', text='序号')
+    tree4.heading('创建时间', text='创建时间')
+    tree4.heading('地区', text='地区')
+    tree4.heading('总金额', text='总金额')
+    tree4.heading('标题', text='标题')
+    tree4.heading('公告链接', text='查看详情')
+    tree4.column('序号', width=20)
+    tree4.column('创建时间', width=150)
+    tree4.column('地区', width=50)
+    tree4.column('总金额', width=100)
+    tree4.column('标题', width=500)
+    tree4.column('公告链接', width=180)
+    # 配置表格5（终止公告）的标题和列宽
+    tree5.heading('序号', text='序号')
+    tree5.heading('创建时间', text='创建时间')
+    tree5.heading('地区', text='地区')
+    tree5.heading('标题', text='标题')
+    tree5.heading('公告链接', text='查看详情')
+    tree5.column('序号', width=20)
+    tree5.column('创建时间', width=150)
+    tree5.column('地区', width=50)
+    tree5.column('标题', width=500)
+    tree5.column('公告链接', width=180)
+    # 配置表格6（违规公告）的标题和列宽
+    tree6.heading('序号', text='序号')
+    tree6.heading('创建时间', text='创建时间')
+    tree6.heading('地区', text='地区')
+    tree6.heading('标题', text='标题')
+    tree6.heading('公告链接', text='查看详情')
+    tree6.column('序号', width=20)
+    tree6.column('创建时间', width=150)
+    tree6.column('地区', width=50)
+    tree6.column('标题', width=500)
+    tree6.column('公告链接', width=180)
+    # 配置表格7（通知公告）的标题和列宽
+    tree7.heading('序号', text='序号')
+    tree7.heading('创建时间', text='创建时间')
+    tree7.heading('地区', text='地区')
+    tree7.heading('标题', text='标题')
+    tree7.heading('公告链接', text='查看详情')
+    tree7.column('序号', width=20)
+    tree7.column('创建时间', width=150)
+    tree7.column('地区', width=50)
+    tree7.column('标题', width=500)
+    tree7.column('公告链接', width=180)
+
+    # 配置表格8（采购公告）的标题和列宽
+    tree8.heading('序号', text='序号')
+    tree8.heading('创建时间', text='创建时间')
+    tree8.heading('标题', text='标题')
+    tree8.heading('公告链接', text='查看详情')
+    tree8.column('序号', width=50)
+    tree8.column('创建时间', width=150)
+    tree8.column('标题', width=600)
+    tree8.column('公告链接', width=180)
+
+    # 配置表格9（框架公告）的标题和列宽
+    tree9.heading('序号', text='序号')
+    tree9.heading('创建时间', text='创建时间')
+    tree9.heading('地区', text='地区')
+    tree9.heading('项目编号', text='项目编号')
+    tree9.heading('标题', text='标题')
+    tree9.heading('公告链接', text='查看详情')
+    tree9.column('序号', width=20)
+    tree9.column('创建时间', width=150)
+    tree9.column('地区', width=50)
+    tree9.column('项目编号', width=150)
+    tree9.column('标题', width=500)
+    tree9.column('公告链接', width=180)
+
+    # 配置表格10（详细反拍公告）的标题和列宽
+    tree10.heading('序号', text='序号')
+    tree10.heading('进行状态', text='进行状态')
+    tree10.heading('开始时间', text='开始时间')
+    tree10.heading('截止时间', text='截止时间')
+    tree10.heading('采购单位', text='采购单位')
+    tree10.heading('项目', text='项目')
+    tree10.heading('反拍品目', text='反拍品目')
+    tree10.heading('项目编号', text='项目编号')
+    tree10.heading('公告链接', text='查看详情')
+    tree10.column('序号', width=20)
+    tree10.column('进行状态', width=50)
+    tree10.column('开始时间', width=150)
+    tree10.column('截止时间', width=150)
+    tree10.column('采购单位', width=250)
+    tree10.column('项目', width=500)
+    tree10.column('反拍品目', width=100)
+    tree10.column('项目编号', width=250)
+    tree10.column('公告链接', width=180)
+
+    # 将表格添加到选项卡上
+    tree1.pack(expand=tk.YES, fill=tk.BOTH)
+    tree2.pack(expand=tk.YES, fill=tk.BOTH)
+    tree3.pack(expand=tk.YES, fill=tk.BOTH)
+    tree4.pack(expand=tk.YES, fill=tk.BOTH)
+    tree5.pack(expand=tk.YES, fill=tk.BOTH)
+    tree6.pack(expand=tk.YES, fill=tk.BOTH)
+    tree7.pack(expand=tk.YES, fill=tk.BOTH)
+    tree8.pack(expand=tk.YES, fill=tk.BOTH)
+    tree9.pack(expand=tk.YES, fill=tk.BOTH)
+    tree10.pack(expand=tk.YES, fill=tk.BOTH)
+
+    # 为每个 Treeview 添加双击事件绑定
+    tree1.bind("<Double-1>", lambda event: open_link(event, tree1))
+    tree2.bind("<Double-1>", lambda event: open_link(event, tree2))
+    tree3.bind("<Double-1>", lambda event: open_link(event, tree3))
+    tree4.bind("<Double-1>", lambda event: open_link(event, tree4))
+    tree5.bind("<Double-1>", lambda event: open_link(event, tree5))
+    tree6.bind("<Double-1>", lambda event: open_link(event, tree6))
+    tree7.bind("<Double-1>", lambda event: open_link(event, tree7))
+    tree8.bind("<Double-1>", lambda event: open_link(event, tree8))
+    tree9.bind("<Double-1>", lambda event: open_link(event, tree9))
+    tree10.bind("<Double-1>", lambda event: open_link(event, tree10))
+
+    notebook.pack(expand=tk.YES, fill=tk.BOTH)
+
+    def generate_table_1():
+        generate_treeview_1(tree1)
+    def generate_table_2():
+        generate_treeview_2(tree2)
+    def generate_table_3():
+        generate_treeview_3(tree3)
+    def generate_table_4():
+        generate_treeview_4(tree4)
+    def generate_table_5():
+        generate_treeview_5(tree5)
+    def generate_table_6():
+        generate_treeview_6(tree6)
+    def generate_table_7():
+        generate_treeview_7(tree7)
+    def generate_table_8():
+        generate_treeview_8(tree8)
+    def generate_table_9():
+        generate_treeview_9(tree9)
+    def generate_table_10():
+        generate_treeview_10(tree10)
+
+    generate_button1 = tk.Button(button_frame, text='反拍公告更新', command=generate_table_1, width=21, height=2, font=('微软雅黑', 12))
+    generate_button2 = tk.Button(button_frame, text='反拍结果更新', command=generate_table_2, width=21, height=2, font=('微软雅黑', 12))
+    generate_button3 = tk.Button(button_frame, text='竞价结果更新', command=generate_table_3, width=21, height=2, font=('微软雅黑', 12))
+    generate_button4 = tk.Button(button_frame, text='竞价公告更新', command=generate_table_4, width=21, height=2, font=('微软雅黑', 12))
+    generate_button5 = tk.Button(button_frame, text='终止公告更新', command=generate_table_5, width=21, height=2, font=('微软雅黑', 12))
+    generate_button6 = tk.Button(button_frame, text='违规公告更新', command=generate_table_6, width=21, height=2, font=('微软雅黑', 12))
+    generate_button7 = tk.Button(button_frame, text='通知公告更新', command=generate_table_7, width=21, height=2, font=('微软雅黑', 12))
+    generate_button8 = tk.Button(button_frame, text='采购网公告更新', command=generate_table_8, width=21, height=2, font=('微软雅黑', 12))
+    generate_button9 = tk.Button(button_frame, text='采购网公告更新', command=generate_table_9, width=21, height=2, font=('微软雅黑', 12))
+    generate_button10 = tk.Button(button_frame, text='采购网公告更新', command=generate_table_10, width=21, height=2, font=('微软雅黑', 12))
+
+# 创建一个新函数，将这三个功能合并在一起
+    def update_all_tables():
+        generate_treeview_1(tree1)
+        generate_treeview_2(tree2)
+        generate_treeview_3(tree3)
+        generate_treeview_4(tree4)
+        generate_treeview_5(tree5)
+        generate_treeview_6(tree6)
+        generate_treeview_7(tree7)
+        generate_treeview_8(tree8)
+        generate_treeview_9(tree9)
+        generate_treeview_10(tree10)
+
+# 创建一个名为“一键更新”的新按钮，将命令设置为新函数
+    update_button = tk.Button(button_frame, text='一键更新', command=update_all_tables, width=21, height=2, font=('微软雅黑', 12))
+    update_button.pack(side=tk.LEFT, padx=21)
+
+    def export_selected_excel():
+        selected_tab = notebook.index(notebook.select())
+        if selected_tab == 0:
+            export_announcement_excel(tree1)
+        elif selected_tab == 1:
+            export_result_excel(tree2)
+        elif selected_tab == 2:
+            export_bidding_result_exce(tree3)
+        elif selected_tab == 3:
+            export_jjgg_excel(tree4)
+        elif selected_tab == 4:
+            export_zzgg_excel(tree5)
+        elif selected_tab == 5:
+            export_wggg_excel(tree6)
+        elif selected_tab == 6:
+            export_tzgg_excel(tree7)
+        elif selected_tab == 7:
+            export_cgwgg_excel(tree8)
+        elif selected_tab == 8:
+            export_kjgg_excel(tree9)
+        elif selected_tab == 9:
+            export_kjgg_result_excel(tree10)
+
+    export_button = tk.Button(button_frame, text='导出Excel表格', command=export_selected_excel, width=21, height=2, font=('微软雅黑', 12))
+    export_button.pack(side=tk.RIGHT, padx=21)
+
+    window.mainloop()
+if __name__ == '__main__':
+    check_validity()  # 在启动程序前检查有效期
+    create_login_window(create_main_window)  # 当成功登录时，调用 create_main_window
